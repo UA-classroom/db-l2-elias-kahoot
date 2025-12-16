@@ -1,48 +1,177 @@
-import psycopg2
-from psycopg2.extras import RealDictCursor
+from psycopg2.extras import RealDictCursor # RealDictCursor makes query result return dictionaries instead of tuples
+from typing import List, Optional          # Used for typehints that makes the readabillity better
+from schemas import UserCreate, QuizCreate 
 
 """
-This file is responsible for making database queries, which your fastapi endpoints/routes can use.
-The reason we split them up is to avoid clutter in the endpoints, so that the endpoints might focus on other tasks 
+1. This file is responsible for making database queries, which your fastapi endpoints/routes can use.
+The reason we split them up is to avoid clutter in the endpoints, so that the endpoints might focus on other tasks
 
-- Try to return results with cursor.fetchall() or cursor.fetchone() when possible
-- Make sure you always give the user response if something went right or wrong, sometimes 
+1.1: Using DAL (Data Access Layer) which doesn't involve using:
+
+- FastAPI imports.
+- HTTP logic.
+- Request or response objects.
+
+It only uses SQL and database logic.
+
+-----------------------------------------------------------------------------------------------------------------------
+
+2. Try to return results with cursor.fetchall() or cursor.fetchone() when possible
+
+2.2: The consistent use of:
+
+- fetchall() for the list operations.
+- fetchone() for create and delete operations.
+-----------------------------------------------------------------------------------------------------------------------
+
+3. Make sure you always give the user response if something went right or wrong, sometimes 
 you might need to use the RETURNING keyword to garantuee that something went right / wrong
 e.g when making DELETE or UPDATE queries
-- No need to use a class here
-- Try to raise exceptions to make them more reusable and work a lot with returns
-- You will need to decide which parameters each function should receive. All functions 
+
+3.3: Using RETURNING id in create_user, delete_user, create_quiz.
+
+-----------------------------------------------------------------------------------------------------------------------
+
+4. No need to use a class here
+
+4.4: No classes used.
+
+-----------------------------------------------------------------------------------------------------------------------
+
+5. Try to raise exceptions to make them more reusable and work a lot with returns
+
+5.5: No raise exceptions raised at this point.
+
+- Returning values through dict, bool, int and None at the moment, letting psycopg2 raise the errors with implicit exceptions.
+
+# TODO: If time allows, raise exceptions will be implemented.
+
+-----------------------------------------------------------------------------------------------------------------------
+
+6. You will need to decide which parameters each function should receive. All functions 
 start with a connection parameter.
-- Below, a few inspirational functions exist - feel free to completely ignore how they are structured
-- E.g, if you decide to use psycopg3, you'd be able to directly use pydantic models with the cursor, these examples are however using psycopg2 and RealDictCursor
+
+6.6: All the functions below start with the con statement and only accepts what they need.
+
+-----------------------------------------------------------------------------------------------------------------------
+
+7. Below, a few inspirational functions exist - feel free to completely ignore how they are structured
+
+7.7: Adapted the inspirational functions that were provided:
+
+- changed naming, added schemas/typing/comments and handeled delete confirmation.
+
+-----------------------------------------------------------------------------------------------------------------------
+
+8. E.g, if you decide to use psycopg3, you'd be able to directly use pydantic models with the cursor, 
+these examples are however using psycopg2 and RealDictCursor
+
+8.8: RealDictCursor parameter used in all functions and parameterized all the queries through %s.
 """
 
 
-### THIS IS JUST AN EXAMPLE OF A FUNCTION FOR INSPIRATION FOR A LIST-OPERATION (FETCHING MANY ENTRIES)
-# def get_items(con):
-#     with con:
-#         with con.cursor(cursor_factory=RealDictCursor) as cursor:
-#             cursor.execute("SELECT * FROM items;")
-#             items = cursor.fetchall()
-#     return items
+
+def list_users(con) -> List[dict]:
+    """
+    Fetches all users from database.
+    Returns a list of dictionaries where each dict represents a user.
+    """
+    # Activates a connection and commits it automatically if it's successful.
+    with con:
+        # Open a database cursor that returns rows as dictionaries
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute("SELECT id, username, email, role, created_at FROM users;")
+            # fetchall() returns all rows from the query
+            return cursor.fetchall()
 
 
-### THIS IS JUST INSPIRATION FOR A DETAIL OPERATION (FETCHING ONE ENTRY)
-# def get_item(con, item_id):
-#     with con:
-#         with con.cursor(cursor_factory=RealDictCursor) as cursor:
-#             cursor.execute("""SELECT * FROM items WHERE id = %s""", (item_id,))
-#             item = cursor.fetchone()
-#             return item
+
+def create_user(con, user: UserCreate) -> int:
+    """
+    Creates a new user in the database.
+    Returns the ID of the created user.
+    """
+    # TODO In a "real" application, the password should be hashed before storing it.
+    password_hash = user.password
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                INSERT INTO users (username, email, password_hash, role)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id;
+                """,
+                # Using %s as placehorders as a safety messure against SQL injections
+                (user.username, user.email, password_hash, user.role),
+            )
+            row = cursor.fetchone() # Returns the tow produced
+            return row["id"]        # Return the primary key
 
 
-### THIS IS JUST INSPIRATION FOR A CREATE-OPERATION
-# def add_item(con, title, description):
-#     with con:
-#         with con.cursor(cursor_factory=RealDictCursor) as cursor:
-#             cursor.execute(
-#                 "INSERT INTO items (title, description) VALUES (%s, %s) RETURNING id;",
-#                 (title, description),
-#             )
-#             item_id = cursor.fetchone()["id"]
-#     return item_id
+
+def get_user(con, user_id: int ) -> Optional[dict]:
+    """
+    Fetch a single user by its ID.
+    Returns a dictionary if the user exits, if user doesn't exist, it returns None.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                "SELECT id, username, email, role, created_at FROM users WHERE id = %s;",
+                (user_id,) # Comma in parameter to create a tuple
+            )
+            return cursor.fetchone()
+
+
+
+def delete_user(con, user_id: int) -> bool:
+    """
+    Delete a user by its ID.
+    Returns True if the user was deleted, otherwise it returns False if the user doesn't exist.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                "DELETE FROM users WHERE id = %s RETURNING id;",
+                (user_id,)  
+            )
+            # If a row is returned, the delete was successful
+            row = cursor.fetchone()
+            return row is not None
+
+
+
+def list_quizzes(con) -> List[dict]:
+    """
+    Fetch all quizzes from the database.
+    Returns a list of quizzes as a dictionary.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                SELECT id, title, description, visibility, creator_id, created_at, updated_at
+                FROM quizzes;
+                """
+            )
+            return cursor.fetchall()
+
+
+
+def create_quiz(con, quiz: QuizCreate) -> int:
+    """
+    Create a new quiz in the database.
+    Returns the ID of the created quiz.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                INSERT INTO quizzes (title, description, visibility, creator_id)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id;
+                """,
+                (quiz.title, quiz.description, quiz.visibility, quiz.creator_id)
+            )
+            row = cursor.fetchone()
+            return row["id"]

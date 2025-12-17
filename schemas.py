@@ -89,3 +89,12 @@ class QuestionOut(QuestionBase):
     quiz_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+
+# ----- SESSIONS ------
+
+class SessionCreate(BaseModel):
+    quiz_id: int
+    host_id: int
+    join_code: str

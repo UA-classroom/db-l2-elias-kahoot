@@ -1,6 +1,6 @@
 from psycopg2.extras import RealDictCursor # RealDictCursor makes query result return dictionaries instead of tuples
 from typing import List, Optional          # Used for typehints that makes the readabillity better
-from schemas import UserCreate, QuizCreate 
+from schemas import UserCreate, QuizCreate, QuestionCreate
 
 """
 1. This file is responsible for making database queries, which your fastapi endpoints/routes can use.
@@ -18,7 +18,7 @@ It only uses SQL and database logic.
 
 2. Try to return results with cursor.fetchall() or cursor.fetchone() when possible
 
-2.2: The consistent use of:
+2.2: Consistent use of:
 
 - fetchall() for the list operations.
 - fetchone() for create and delete operations.
@@ -172,6 +172,80 @@ def create_quiz(con, quiz: QuizCreate) -> int:
                 RETURNING id;
                 """,
                 (quiz.title, quiz.description, quiz.visibility, quiz.creator_id)
+            )
+            row = cursor.fetchone()
+            return row["id"]
+
+
+
+def list_questions_by_quiz(con, quiz_id: int):
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                SELECT id, quiz_id, question_type, time_limit_seconds, points, sort_order, question_text
+                FROM questions
+                WHERE quiz_id = %s
+                ORDER BY sort_order NULLS LAST, id;
+                """,
+                (quiz_id,)
+            )
+            return cursor.fetchall()
+
+
+
+def create_question(con, q: QuestionCreate) -> int:
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                INSERT INTO questions (quiz_id, question_type, time_limit_seconds, points, sort_order, question_text)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id;
+                """,
+                (q.quiz_id, q.question_type, q.time_limit_seconds, q.points, q.sort_order, q.question_text)
+            )
+            row = cursor.fetchone()
+            return row["id"]
+
+
+
+def get_question(con, question_id: int):
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                SELECT id, quiz_id, question_type, time_limit_seconds, points, sort_order, question_text
+                FROM questions
+                WHERE id = %s;
+                """,
+                (question_id,)
+            )
+            return cursor.fetchone()
+
+
+
+def delete_question(con, question_id: int) -> bool:
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                "DELETE FROM questions WHERE id = %s RETURNING id;",
+                (question_id,),
+            )
+            return cursor.fetchone() is not None
+
+
+
+def create_session(con, quiz_id: int, host_id: int, join_code: str) -> int:
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                INSERT INTO sessions (quiz_id, host_id, join_code)
+                VALUES (%s, %s, %s)
+                RETURNING id;
+                """,
+                (quiz_id, host_id, join_code),
             )
             row = cursor.fetchone()
             return row["id"]

@@ -64,7 +64,7 @@ def create_tables():
                 description TEXT,
                 visibility VARCHAR(20),    -- e.g. public, private.
                 creator_id BIGINT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL default now(),
                 updated_at TIMESTAMPTZ
             );
 

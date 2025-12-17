@@ -5,7 +5,7 @@ from db_setup import get_connection
 from fastapi import FastAPI, HTTPException
 from typing import List
 import db
-from schemas import UserCreate, UserOut, QuizCreate, QuizOut
+from schemas import UserCreate, UserOut, QuizCreate, QuizOut, QuestionCreate, QuestionOut, SessionCreate
 
 
 app = FastAPI()
@@ -46,7 +46,6 @@ but will have different HTTP-verbs.
 # IMPLEMENT THE ACTUAL ENDPOINTS! Feel free to remove
 
 
-app = FastAPI()
 
 # ----- USERS -----
 
@@ -90,11 +89,11 @@ def create_user(user: UserCreate):
 
 
 @app.get("/users/{user_id}", response_model=UserOut)
-"""
-GET /users{iser_id}
-Fetch a single user by ID.
-"""
 def get_user(user_id: int):
+    """
+    GET /users{user_id}
+    Fetch a single user by ID.
+    """
     con = get_connection()
     try:
         user = db.get_user(con, user_id)
@@ -156,5 +155,89 @@ def create_quiz(quiz: QuizCreate):
     finally:
         con.close()
 
+
+
+@app.get ("/quizzes/{quiz_id}/questions", response_model=List[QuestionOut])
+def list_questions(quiz_id: int):
+    """
+    Get /quizzes/{quiz_id}/questions
+    Fetch all questions that belongs to a specific quiz.
+    """
+    con = get_connection()
+    try:
+        return db.list_questions_by_quzz(con, quiz_id)
+    finally:
+        con.close()
+
+
+
+# ----- QUESTIONS -----
+
+@app.post("/questions", status_code=201, response_model=dict)
+def create_question(question: QuestionCreate):
+    """
+    POST /questions
+    Create a new question for a quiz using the validated request data.
+    """
+    con = get_connection()
+    try:
+        question_id = db.create_question(con, question)
+        return {"id": question_id}
+    finally:
+        con.close()
+
+
+
+@app.get("/questions/{question_id}", response_model=QuestionOut)
+def get_question(question_id: int):
+    """
+    GET /questions/{question_id}
+    Fetch a single question by its ID.
+    """
+    con = get_connection()
+    try:
+        q = db.get_question(con, question_id)
+        if not q:
+            raise HTTPException(status_code=404, detail="Question not found.")
+        return q
+    finally:
+        con.close()
+
+
+
+@app.delete("/questions/{question_id}", status_code=204)
+def delete_question(question_id: int):
+    """
+    DELETE /questions/{question_id}
+    Delete a question by its ID.
+    """
+    con = get_connection()
+    try:
+        deleted = db.delete_question(con, question_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Question not found")
+        return
+    finally:
+        con.close()
+
+
+
+@app.post("/sessions", status_code=201, response_model=dict)
+def create_session(session: SessionCreate):
+    """
+    POST /sessions
+    Create a new game session. Status defaults to 'waiting'.
+    """
+    con = get_connection()
+    try:
+        session_id = db.create_session(
+            con,
+            quiz_id=session.quiz_id,
+            host_id=session.host_id,
+            join_code=session.join_code,
+        )
+        return {"id": session_id}
+    finally:
+        con.close()
 
 # uvicorn app:app --reload

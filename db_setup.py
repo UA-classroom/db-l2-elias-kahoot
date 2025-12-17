@@ -63,65 +63,73 @@ def create_tables():
                 title VARCHAR(255) NOT NULL,
                 description TEXT,
                 visibility VARCHAR(20),    -- e.g. public, private.
-                creator_id BIGINT NOT NULL,
+                creator_id BIGINT NOT NULL REFERENCES users(id),
                 created_at TIMESTAMPTZ NOT NULL default now(),
                 updated_at TIMESTAMPTZ
             );
 
-            -- QUESTIONS
-            CREATE TABLE IF NOT EXISTS questions (
+            -- QUIZ QUESTIONS
+            CREATE TABLE IF NOT EXISTS quiz_questions (
                 id BIGSERIAL PRIMARY KEY,
                 quiz_id BIGINT NOT NULL REFERENCES quizzes(id),
-                question_type VARCHAR(20), -- e.g. multiple_choice, true_fasle.
+                question_type VARCHAR(20), -- e.g. multiple_choice, true_false.
                 time_limit_seconds INT,    -- e.g. 30.
                 points INT,                -- e.g. 1000.
                 sort_order INT,            -- which order in the quiz.
                 question_text TEXT NOT NULL
             );
 
-            -- ANSWER OPTIONS 
-            CREATE TABLE IF NOT EXISTS answer_options (
+
+            -- QUESTION ANSWER OPTIONS
+            CREATE TABLE IF NOT EXISTS question_answer_options (
                 id BIGSERIAL PRIMARY KEY,
-                question_id BIGINT NOT NULL REFERENCES questions(id),
+                question_id BIGINT NOT NULL REFERENCES quiz_questions(id),
                 option_text TEXT NOT NULL,
                 is_correct BOOLEAN NOT NULL default FALSE,
                 sort_order INT
             );
 
-            -- SESSIONS 
-            CREATE TABLE IF NOT EXISTS sessions (
+            -- QUIZ SESSIONS
+            CREATE TABLE IF NOT EXISTS quiz_sessions (
                 id BIGSERIAL PRIMARY KEY,
                 quiz_id BIGINT NOT NULL REFERENCES quizzes(id),
                 host_id BIGINT NOT NULL REFERENCES users(id),
-                join_code VARCHAR(10) UNIQUE NOT NULL,    -- PIN-code for players to type in.
-                status VARCHAR(20),                       -- waiting, in_progess, finished.
-                started_at TIMESTAMPTZ default now(),
+                join_code VARCHAR(10) UNIQUE NOT NULL,       -- PIN-code for players to type in.
+                status VARCHAR(20) NOT NULL default 'waiting'
+                    CHECK (status IN ('waiting', 'in_progress', 'finished')),
+                started_at TIMESTAMPTZ NOT NULL default now(),
                 finished_at TIMESTAMPTZ
             );
 
-            -- SESSION PLAYERS 
-            CREATE TABLE IF NOT EXISTS session_players (
+            -- QUIZ SESSION PLAYERS 
+            CREATE TABLE IF NOT EXISTS quiz_session_players (
                 id BIGSERIAL PRIMARY KEY,
-                session_id BIGINT NOT NULL REFERENCES sessions(id),
+                session_id BIGINT NOT NULL REFERENCES quiz_sessions(id),
                 user_id BIGINT NULL REFERENCES users(id),
                 nickname VARCHAR(50) NOT NULL,
-                joined_at TIMESTAMPTZ NOT NULL,
-                score INT NOT NULL default 0            
+                joined_at TIMESTAMPTZ NOT NULL default now(),
+                score INT NOT NULL default 0,
+
+                UNIQUE (session_id, nickname)   -- Constraint to keep two players from having the same nickname.
             );
 
-            -- PLAYER ANSWERS
-            CREATE TABLE IF NOT EXISTS player_answers (
+
+
+            -- QUIZ SESSION ANSWERS
+            CREATE TABLE IF NOT EXISTS quiz_session_answers (
                 id BIGSERIAL PRIMARY KEY,
-                session_player_id BIGINT NOT NULL REFERENCES session_players(id),
-                answer_option_id BIGINT NOT NULL REFERENCES answer_options(id),
+                session_player_id BIGINT NOT NULL REFERENCES quiz_session_players(id),
+                answer_option_id BIGINT NOT NULL REFERENCES question_answer_options(id),
                 answered_at TIMESTAMPTZ,
                 is_correct BOOLEAN,
                 points_awarded INT,
-                question_id BIGINT NOT NULL REFERENCES questions(id)
+                question_id BIGINT NOT NULL REFERENCES quiz_questions(id),
             );
             """
         )
     connection.close()
+
+
 
 # File only runs table creation when executed directly.
 if __name__ == "__main__":

@@ -79,7 +79,6 @@ def create_tables():
                 question_text TEXT NOT NULL
             );
 
-
             -- QUESTION ANSWER OPTIONS
             CREATE TABLE IF NOT EXISTS question_answer_options (
                 id BIGSERIAL PRIMARY KEY,
@@ -113,8 +112,6 @@ def create_tables():
                 UNIQUE (session_id, nickname)   -- Constraint to keep two players from having the same nickname.
             );
 
-
-
             -- QUIZ SESSION ANSWERS
             CREATE TABLE IF NOT EXISTS quiz_session_answers (
                 id BIGSERIAL PRIMARY KEY,
@@ -123,7 +120,7 @@ def create_tables():
                 answered_at TIMESTAMPTZ,
                 is_correct BOOLEAN,
                 points_awarded INT,
-                question_id BIGINT NOT NULL REFERENCES quiz_questions(id),
+                question_id BIGINT NOT NULL REFERENCES quiz_questions(id)
             );
             """
         )

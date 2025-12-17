@@ -165,7 +165,7 @@ def list_questions(quiz_id: int):
     """
     con = get_connection()
     try:
-        return db.list_questions_by_quzz(con, quiz_id)
+        return db.list_questions_by_quiz(con, quiz_id)
     finally:
         con.close()
 

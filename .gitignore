@@ -3,3 +3,4 @@ venv
 .env
 .*env*
 description*
+__pycache__/

@@ -104,8 +104,8 @@ def create_user(con, user: UserCreate) -> int:
                 # Using %s as placehorders as a safety messure against SQL injections
                 (user.username, user.email, password_hash, user.role),
             )
-            row = cursor.fetchone() # Returns the tow produced
-            return row["id"]        # Return the primary key
+            row = cursor.fetchone() # Returns the inserted row
+            return row["id"]        # Returns the primary key
 
 
 
@@ -118,9 +118,9 @@ def get_user(con, user_id: int ) -> Optional[dict]:
         with con.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
                 "SELECT id, username, email, role, created_at FROM users WHERE id = %s;",
-                (user_id,) # Comma in parameter to create a tuple
+                (user_id,)           # Comma in parameter to create a tuple
             )
-            return cursor.fetchone()
+            return cursor.fetchone() # Returns one row or None
 
 
 
@@ -171,7 +171,7 @@ def create_quiz(con, quiz: QuizCreate) -> int:
                 VALUES (%s, %s, %s, %s)
                 RETURNING id;
                 """,
-                (quiz.title, quiz.description, quiz.visibility, quiz.creator_id)
+                (quiz.title, quiz.description, quiz.visibility, quiz.creator_id) # Values taken from the validated Pydantic schema
             )
             row = cursor.fetchone()
             return row["id"]
@@ -179,12 +179,16 @@ def create_quiz(con, quiz: QuizCreate) -> int:
 
 
 def list_questions_by_quiz(con, quiz_id: int):
+    """
+    Fetch all questions that belongs to a specific quiz.
+    Returns a list of dictionaries where each dict represents a question.
+    """
     with con:
         with con.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
                 """
                 SELECT id, quiz_id, question_type, time_limit_seconds, points, sort_order, question_text
-                FROM questions
+                FROM quiz_questions
                 WHERE quiz_id = %s
                 ORDER BY sort_order NULLS LAST, id;
                 """,
@@ -195,11 +199,15 @@ def list_questions_by_quiz(con, quiz_id: int):
 
 
 def create_question(con, q: QuestionCreate) -> int:
+    """
+    Create a new question in the database.
+    Returns the ID of the created question.
+    """
     with con:
         with con.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
                 """
-                INSERT INTO questions (quiz_id, question_type, time_limit_seconds, points, sort_order, question_text)
+                INSERT INTO quiz_questions (quiz_id, question_type, time_limit_seconds, points, sort_order, question_text)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id;
                 """,
@@ -211,12 +219,16 @@ def create_question(con, q: QuestionCreate) -> int:
 
 
 def get_question(con, question_id: int):
+    """
+    Fetch a single question by ID.
+    Return a dictionary if the question exists, if not, return None.
+    """
     with con:
         with con.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
                 """
                 SELECT id, quiz_id, question_type, time_limit_seconds, points, sort_order, question_text
-                FROM questions
+                FROM quiz_questions
                 WHERE id = %s;
                 """,
                 (question_id,)
@@ -226,22 +238,35 @@ def get_question(con, question_id: int):
 
 
 def delete_question(con, question_id: int) -> bool:
+    """
+    Delete a question by its ID.
+    Returns True if the question was deleted, otherwise it returns False.
+    """
     with con:
         with con.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
-                "DELETE FROM questions WHERE id = %s RETURNING id;",
+                "DELETE FROM quiz_questions WHERE id = %s RETURNING id;",
                 (question_id,),
             )
-            return cursor.fetchone() is not None
+            # If a row is returned, the delete was successful
+            row = cursor.fetchone()
+            return row is not None
 
 
 
 def create_session(con, quiz_id: int, host_id: int, join_code: str) -> int:
+    """
+    Creates a new game session.
+    Returns the ID of the newly created session.
+
+    - The session status is not set here, it's handled by PostgresSQL.
+    - If a INSERT is not provided as a value for status, it will be set as 'waiting' per default. 
+    """
     with con:
         with con.cursor(cursor_factory=RealDictCursor) as cursor:
             cursor.execute(
                 """
-                INSERT INTO sessions (quiz_id, host_id, join_code)
+                INSERT INTO quiz_sessions (quiz_id, host_id, join_code)
                 VALUES (%s, %s, %s)
                 RETURNING id;
                 """,

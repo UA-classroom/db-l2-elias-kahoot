@@ -70,6 +70,7 @@ these examples are however using psycopg2 and RealDictCursor
 """
 
 
+# ----- USERS -----
 
 def list_users(con) -> List[dict]:
     """
@@ -141,6 +142,8 @@ def delete_user(con, user_id: int) -> bool:
 
 
 
+# ----- QUIZZES -----
+
 def list_quizzes(con) -> List[dict]:
     """
     Fetch all quizzes from the database.
@@ -198,6 +201,8 @@ def list_questions_by_quiz(con, quiz_id: int):
 
 
 
+# ----- QUESTIONS -----
+
 def create_question(con, q: QuestionCreate) -> int:
     """
     Create a new question in the database.
@@ -254,6 +259,8 @@ def delete_question(con, question_id: int) -> bool:
 
 
 
+# ----- SESSIONS -----
+
 def create_session(con, quiz_id: int, host_id: int, join_code: str) -> int:
     """
     Creates a new game session.
@@ -274,3 +281,143 @@ def create_session(con, quiz_id: int, host_id: int, join_code: str) -> int:
             )
             row = cursor.fetchone()
             return row["id"]
+
+
+#
+def get_session_by_join_code(con, join_code: str):
+    """
+    Fetches a quiz session using the join code.
+    Used when players join the session.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                SELECT id, quiz_id, host_id, join_code, status, started_at, finished_at
+                FROM quiz_sessions
+                WHERE join_code = %s;
+                """,
+                (join_code,),
+            )
+            return cursor.fetchone()
+
+
+
+def get_session(con, session_id: int):
+    """
+    Fetches a quiz session by its ID.
+    Used to get the session details.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                SELECT id, quiz_id, host_id, join_code, status, started_at, finished_at
+                FROM quiz_sessions
+                WHERE id = %s;
+                """,
+                (session_id,),
+            )
+            return cursor.fetchone()
+
+
+
+def update_session_status(con, session_id: int, status: str) -> bool:
+    """
+    Updates the status of the quiz session.
+    Returns True if the session esxists and was updated.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                UPDATE quiz_sessions
+                SET status = %s,
+                    finished_at = CASE WHEN %s = 'finished' THEN now() ELSE finished_at END
+                WHERE id = %s
+                RETURNING id;
+                """,
+                (status, status, session_id),
+            )
+            return cursor.fetchone() is not None
+
+
+# ----- SESSION PLAYERS -----
+
+def add_session_player(con, session_id: int, nickname: str, user_id: int | None):
+    """
+    Adds a player to the quiz session.
+    The player can be a registered user or a guest player.
+    Returns the new session player ID.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                INSERT INTO quiz_session_players (session_id, nickname, user_id)
+                VALUES (%s, %s, %s)
+                RETURNING id;
+                """,
+                (session_id, nickname, user_id),
+            )
+            return cursor.fetchone()["id"]
+
+
+
+def list_session_players(con, session_id: int):
+    """
+    Returns all players that have joined a specific session.
+    Used to display the player list.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                SELECT id, session_id, user_id, nickname, joined_at, score
+                FROM quiz_session_players
+                WHERE session_id = %s
+                ORDER BY joined_at ASC, id ASC;
+                """,
+                (session_id,),
+            )
+            return cursor.fetchall()
+
+
+
+def get_session_player(con, player_id: int):
+    """
+    Fetches a single session player by the ID.
+    Used when handling player-specific actions.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                SELECT id, session_id, user_id, nickname, joined_at, score
+                FROM quiz_session_players
+                WHERE id = %s;
+                """,
+                (player_id,),
+            )
+            return cursor.fetchone()
+
+
+
+def increment_player_score(con, player_id: int, delta: int) -> bool:
+    """
+    Increases a player's score.
+    Returns True if the player exists and was updated.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                UPDATE quiz_session_players
+                SET score = score + %s
+                WHERE id = %s
+                RETURNING id;
+                """,
+                (delta, player_id),
+            )
+            return cursor.fetchone() is not None
+

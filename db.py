@@ -421,3 +421,43 @@ def increment_player_score(con, player_id: int, delta: int) -> bool:
             )
             return cursor.fetchone() is not None
 
+
+
+# ----- ANSWER OPTIONS -----
+
+def list_answer_options_by_question(con, question_id: int):
+    """
+    Returns all answer options that belong to a specific question.
+    Used to show the possible answers for a question.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                SELECT id, question_id, option_text, is_correct, sort_order
+                FROM question_answer_options
+                WHERE question_id = %s
+                ORDER BY sort_order NULLS LAST, id;
+                """,
+                (question_id,),
+            )
+            return cursor.fetchall()
+
+
+
+def create_answer_option(con, opt: "AnswerOptionCreate") -> int:
+    """
+    Creates a new answer option for a question.
+    Returns the ID of the the created answer option.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            cursor.execute(
+                """
+                INSERT INTO question_answer_options (question_id, option_text, is_correct, sort_order)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id;
+                """,
+                (opt.question_id, opt.option_text, opt.is_correct, opt.sort_order),
+            )
+            return cursor.fetchone()["id"]

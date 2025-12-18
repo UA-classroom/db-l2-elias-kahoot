@@ -53,7 +53,7 @@ def create_tables():
                 username VARCHAR(50) UNIQUE NOT NULL,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                role VARCHAR(20), -- e.g. admin, teacher, player.
+                role VARCHAR(20) MOT NULL, -- e.g. admin, teacher, player.
                 created_at TIMESTAMPTZ NOT NULL default now()
             );
 
@@ -96,7 +96,7 @@ def create_tables():
                 join_code VARCHAR(10) UNIQUE NOT NULL,       -- PIN-code for players to type in.
                 status VARCHAR(20) NOT NULL default 'waiting'
                     CHECK (status IN ('waiting', 'in_progress', 'finished')),
-                started_at TIMESTAMPTZ NOT NULL default now(),
+                started_at TIMESTAMPTZ,
                 finished_at TIMESTAMPTZ
             );
 

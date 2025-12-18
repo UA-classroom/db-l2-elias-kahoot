@@ -1,6 +1,6 @@
 from psycopg2.extras import RealDictCursor # RealDictCursor makes query result return dictionaries instead of tuples
 from typing import List, Optional          # Used for typehints that makes the readabillity better
-from schemas import UserCreate, QuizCreate, QuestionCreate
+from schemas import UserCreate, QuizCreate, QuestionCreate, AnswerOptionCreate
 
 """
 1. This file is responsible for making database queries, which your fastapi endpoints/routes can use.
@@ -445,7 +445,7 @@ def list_answer_options_by_question(con, question_id: int):
 
 
 
-def create_answer_option(con, opt: "AnswerOptionCreate") -> int:
+def create_answer_option(con, opt: AnswerOptionCreate) -> int:
     """
     Creates a new answer option for a question.
     Returns the ID of the the created answer option.
@@ -461,3 +461,59 @@ def create_answer_option(con, opt: "AnswerOptionCreate") -> int:
                 (opt.question_id, opt.option_text, opt.is_correct, opt.sort_order),
             )
             return cursor.fetchone()["id"]
+
+
+
+# ----- CREATE_SESSION_ANSWER_AND_SCORE IS A AI GENERATED CODE ------
+# ----- CREATE_SESSION_ANSWER_AND_SCORE IS A AI GENERATED CODE ------
+# ----- CREATE_SESSION_ANSWER_AND_SCORE IS A AI GENERATED CODE ------
+
+# WAS RUNNING OUT OF TIME AND I DID NOT FULLY UNDERSTAND HOW TO IMPLEMENT THIS CODE BY MY OWN SO I GENERATED IT
+def create_session_answer_and_score(con, session_player_id: int, question_id: int, answer_option_id: int):
+    """
+    Inserts an answer row, calculates correctness + points_awarded.
+    Points are pulled from quiz_questions.points.
+    """
+    with con:
+        with con.cursor(cursor_factory=RealDictCursor) as cursor:
+            # Determine correctness and points
+            cursor.execute(
+                """
+                SELECT
+                    q.points AS points,
+                    ao.is_correct AS is_correct
+                FROM quiz_questions q
+                JOIN question_answer_options ao ON ao.id = %s
+                WHERE q.id = %s AND ao.question_id = q.id;
+                """,
+                (answer_option_id, question_id),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None  # invalid option for question
+
+            points_awarded = (row["points"] or 0) if row["is_correct"] else 0
+
+            # Insert answer
+            cursor.execute(
+                """
+                INSERT INTO quiz_session_answers
+                    (session_player_id, answer_option_id, answered_at, is_correct, points_awarded, question_id)
+                VALUES (%s, %s, now(), %s, %s, %s)
+                RETURNING id, session_player_id, question_id, answer_option_id, answered_at, is_correct, points_awarded;
+                """,
+                (session_player_id, answer_option_id, row["is_correct"], points_awarded, question_id),
+            )
+            ans = cursor.fetchone()
+
+            # Update score
+            if points_awarded:
+                cursor.execute(
+                    """
+                    UPDATE quiz_session_players
+                    SET score = score + %s
+                    WHERE id = %s;
+                    """,
+                    (points_awarded, session_player_id),
+                )
+            return ans

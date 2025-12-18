@@ -4,3 +4,4 @@ venv
 .*env*
 description*
 __pycache__/
+schemas.sql

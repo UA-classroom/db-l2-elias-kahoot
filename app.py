@@ -5,7 +5,16 @@ from db_setup import get_connection
 from fastapi import FastAPI, HTTPException
 from typing import List
 import db
-from schemas import UserCreate, UserOut, QuizCreate, QuizOut, QuestionCreate, QuestionOut, SessionCreate
+from schemas import (
+    UserCreate, UserOut,
+    QuizCreate, QuizOut,
+    QuestionCreate, QuestionOut,
+    SessionCreate,
+    AnswerOptionCreate, AnswerOptionOut,
+    SessionOut, SessionStatusUpdate,
+    SessionPlayerCreate, SessionPlayerOut,
+    SessionAnswerCreate, SessionAnswerOut,
+)
 
 
 app = FastAPI()
@@ -222,6 +231,8 @@ def delete_question(question_id: int):
 
 
 
+# ----- SESSIONS ------
+
 @app.post("/sessions", status_code=201, response_model=dict)
 def create_session(session: SessionCreate):
     """
@@ -239,5 +250,109 @@ def create_session(session: SessionCreate):
         return {"id": session_id}
     finally:
         con.close()
+
+
+# 
+@app.get("/sessions/{session_id}", response_model=SessionOut)
+def get_session(session_id: int):
+    # Fetch a quiz session using its database ID
+    con = get_connection()
+    try:
+        # s is the session data returned from the database
+        s = db.get_session(con, session_id)
+        if not s:
+            raise HTTPException(status_code=404, detail="Session not found.")
+        return s
+    finally:
+        con.close()
+
+
+
+@app.get("/sessions/by-code/{join_code}", response_model=SessionOut)
+def get_session_by_code(join_code: str):
+    # Fetch a quiz session using the join code that is used by players
+    con = get_connection()
+    try:
+        s = db.get_session_by_join_code(con, join_code)
+        if not s:
+            raise HTTPException(status_code=404, detail="Session not found.")
+        return s
+    finally:
+        con.close()
+
+
+
+@app.patch("/sessions/{session_id}/status", response_model=dict)
+def update_session_status(session_id: int, body: SessionStatusUpdate):
+    # Body is the request body containing the new session status
+    con = get_connection()
+    try:
+        ok = db.update_session_status(con, session_id, body.status)
+        # Ok is True if the session existed and was updated
+        if not ok:
+            raise HTTPException(status_code=404, detail="Session not found.")
+        return {"ok": True}
+    finally:
+        con.close()
+
+
+
+# ----- SESSION PLAYERS -----
+
+@app.post("/session-players", status_code=201, response_model=dict)
+def add_session_player(player: SessionPlayerCreate):
+    # Player is the request body sent by the client
+    # It contains session_id, nickname and optionally user_id
+    con = get_connection()
+    try:
+        try:
+            player_id = db.add_session_player(
+                con,
+                player.session_id,
+                player.nickname, # Display name chosen by the player
+                player.user_id
+            )
+        except Exception as e:
+            # Triggers if for example players have the same nickname in the same sessin
+            raise HTTPException(status_code=409, detail=str(e))
+        return {"id": player_id}
+    finally:
+        con.close()
+
+
+
+@app.get("/sessions/{session_id}/players", response_model=List[SessionPlayerOut])
+def list_session_players(session_id: int):
+    # Returns all players that have joined a the session
+    con = get_connection()
+    try:
+        return db.list_session_players(con, session_id)
+    finally:
+        con.close()
+
+
+
+# ----- SESSION ANSWERS -----
+
+@app.post("/session-answers", status_code=201, response_model=SessionAnswerOut)
+def submit_answer(ans: SessionAnswerCreate):
+    # ans is the request body sent by the client
+    # It represents a player's entered answer to a question
+    con = get_connection()
+    try:
+        created = db.create_session_answer_and_score(
+            con,
+            session_player_id=ans.session_player_id,
+            question_id=ans.question_id,
+            answer_option_id=ans.answer_option_id,
+        )
+        if not created:
+            raise HTTPException(status_code=400, detail="Invalid answer option for this question.")
+        return created
+    finally:
+        con.close()
+
+
+
 
 # uvicorn app:app --reload

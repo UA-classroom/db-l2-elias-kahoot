@@ -20,7 +20,6 @@ The models in this file describe:
 """
 
 
-
 # ----- USERS -----
 # Represents people that are using the system (teachers, hosts and players)
 

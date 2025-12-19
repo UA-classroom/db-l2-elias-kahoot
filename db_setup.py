@@ -11,17 +11,11 @@ DATABASE_NAME = os.getenv("DATABASE_NAME")
 PASSWORD = os.getenv("PASSWORD")
 
 
+
 def get_connection():
     """
-    Function that returns a single connection
-    In reality, we might use a connection pool, since
-    this way we'll start a new connection each time
-    someone hits one of our endpoints, which isn't great for performance
-    ---------
     Function that creates ONE database connection and is reused everywhere.
     This centralizes DB config.
-    ********* CHANGE THIS? ***********
-    ---------
     """
     return psycopg2.connect(
         dbname=DATABASE_NAME,
@@ -53,7 +47,7 @@ def create_tables():
                 username VARCHAR(50) UNIQUE NOT NULL,
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
-                role VARCHAR(20) MOT NULL, -- e.g. admin, teacher, player.
+                role VARCHAR(20) NOT NULL, -- e.g. admin, teacher, player.
                 created_at TIMESTAMPTZ NOT NULL default now()
             );
 
